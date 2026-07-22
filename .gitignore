@@ -1,0 +1,17 @@
+# Python environments
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Build artifacts
+build/
+dist/
+
+# Editor
+.vscode/
+
+# Vendor installers (your call — exclude if you don't want these in the repo)
+Hitec Servo/622a83814860b1646953345/
+CubeMars Servo/CH340-Driver-Download-for-AK-2.0-Series-Motor/
+CubeMars Servo/Upper Computor/
