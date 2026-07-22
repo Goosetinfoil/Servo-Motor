@@ -1,0 +1,6 @@
+Servo_monitor.py is the main code. Run it for the window to show up
+
+Wake-up check is just there to see if the servo is working and awake
+
+Servo profiles is where the profiles for the different settings are stored 
+

@@ -1,0 +1,5 @@
+File step1_check_data.py is used to check if the servo is working correctly. It is run as soon as the servo is plugged in. Can be run when something seems wrong with the servo 
+
+File servo_control.py is the main file. Run it and plug in values ranging from -90 to 90(including 0) to move the servo
+
+File calib_collect_point.py is used to calibrate the max and min points on the servo. 
