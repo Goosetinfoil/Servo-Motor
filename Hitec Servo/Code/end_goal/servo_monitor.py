@@ -92,7 +92,7 @@ def build_cubemars_tab(parent, cubemars):
     buttons) and wires them up to the cubemars_* protocol functions.
     `parent` is the tkinter Frame for this tab. Called once from main();
     doesn't return anything, just populates `parent` in place."""
-    inner = tk.Frame(parent, width=640, height=830)
+    inner = tk.Frame(parent, width=1100, height=760)
     inner.pack_propagate(False)
     inner.place(relx=0.5, rely=0, anchor="n")
 
@@ -120,21 +120,86 @@ def build_cubemars_tab(parent, cubemars):
 
     tk.Label(inner, text="CubeMars AK80-8", font=("Segoe UI", 16, "bold")).pack(pady=(14, 6))
     tk.Label(inner, textvariable=id_var, font=("Segoe UI", 14)).pack(pady=1)
-    tk.Label(inner, textvariable=baud_var, font=("Segoe UI", 14)).pack(pady=1)
+    tk.Label(inner, textvariable=baud_var, font=("Segoe UI", 14)).pack(pady=(1, 10))
 
-    tk.Label(inner, text="New Controller ID (0-255):", font=("Segoe UI", 12)).pack(pady=(10, 0))
-    new_id_entry = tk.Entry(inner, width=10, font=("Segoe UI", 12))
-    new_id_entry.pack(pady=(2, 10))
+    # Two side-by-side columns: App Config on the left, Motor Config on the right
+    columns_frame = tk.Frame(inner)
+    columns_frame.pack()
 
-    tk.Label(inner, text="New CAN Baud Rate:", font=("Segoe UI", 12)).pack()
+    app_col = tk.Frame(columns_frame)
+    app_col.grid(row=0, column=0, sticky="n", padx=(0, 70))
+
+    motor_col = tk.Frame(columns_frame)
+    motor_col.grid(row=0, column=1, sticky="n")
+
+    # ---------------- App Config (left column) ----------------
+
+    tk.Label(app_col, text="App Config", font=("Segoe UI", 14, "bold")).pack(pady=(0, 6))
+
+    app_config_grid = tk.Frame(app_col)
+    app_config_grid.pack(pady=(10, 14))
+
+    tk.Label(app_config_grid, text="New Controller ID (0-255):", font=("Segoe UI", 12)).grid(
+        row=0, column=0, sticky="w", padx=(0, 20), pady=(0, 2))
+    new_id_entry = tk.Entry(app_config_grid, width=10, font=("Segoe UI", 12))
+    new_id_entry.grid(row=1, column=0, sticky="n", padx=(0, 20), pady=(0, 14))
+
+    tk.Label(app_config_grid, text="New CAN Baud Rate:", font=("Segoe UI", 12)).grid(
+        row=0, column=1, sticky="n", pady=(0, 2))
     new_baud_var = tk.StringVar(value="-")
-    baud_box = ttk.Combobox(inner, textvariable=new_baud_var, state="readonly",
+    baud_box = ttk.Combobox(app_config_grid, textvariable=new_baud_var, state="readonly",
                             values=["-"] + list(servo_classes.CubeMarsServo.CUBEMARS_CAN_BAUD_LABELS.values()), width=10, font=("Segoe UI", 12))
-    baud_box.pack(pady=(2, 14))
+    baud_box.grid(row=1, column=1, sticky="n", pady=(0, 14))
 
-    tk.Label(inner, text="Motor Config", font=("Segoe UI", 14, "bold")).pack(pady=(10, 6))
+    # Motor Timeout and Brake Current stay as plain typed entries, same
+    # pattern as everything else. Status Feedback Enable/Rate are handled
+    # separately below since Rate should only be editable while Enable is checked.
+    appconf_extra_entries = {}
 
-    limits_frame = tk.Frame(inner)
+    tk.Label(app_config_grid, text="Motor Timeout (ms)", font=("Segoe UI", 12)).grid(
+        row=2, column=0, sticky="n", padx=(0, 20))
+    timeout_entry = tk.Entry(app_config_grid, width=10, font=("Segoe UI", 12))
+    timeout_entry.grid(row=3, column=0, sticky="n", padx=(0, 20))
+    appconf_extra_entries["timeout_ms"] = timeout_entry
+
+    tk.Label(app_config_grid, text="Brake Current on Timeout (A)", font=("Segoe UI", 12)).grid(
+        row=2, column=1, sticky="w")
+    brake_entry = tk.Entry(app_config_grid, width=10, font=("Segoe UI", 12))
+    brake_entry.grid(row=3, column=1, sticky="n")
+    appconf_extra_entries["brake_current_timeout"] = brake_entry
+
+    # Status Feedback Enable (checkbox) + Status Feedback Rate (only
+    # editable while the checkbox is checked, mirroring how the Rate
+    # field is greyed out in the official app until "Send status over
+    # CAN" is ticked).
+    status_enable_var = tk.IntVar(value=0)
+
+    tk.Label(app_col, text="Status Feedback Rate (Hz)", font=("Segoe UI", 12)).pack(pady=(10, 0))
+    status_rate_entry = tk.Entry(app_col, width=15, font=("Segoe UI", 12), state="disabled")
+    status_rate_entry.pack(pady=(2, 4))
+
+    def on_status_enable_toggle():
+        """Runs whenever the Status Feedback Enable checkbox is
+        clicked. Enables the Rate entry only while checked; disabling
+        it also clears whatever was typed, so a stale rate value can't
+        get sent while the field looks greyed-out/inactive."""
+        if status_enable_var.get() == 1:
+            status_rate_entry.config(state="normal")
+        else:
+            status_rate_entry.config(state="normal")
+            status_rate_entry.delete(0, tk.END)
+            status_rate_entry.config(state="disabled")
+
+    status_enable_check = tk.Checkbutton(app_col, text="Status Feedback Enable",
+                                          variable=status_enable_var, font=("Segoe UI", 12),
+                                          command=on_status_enable_toggle)
+    status_enable_check.pack(pady=(0, 14))
+
+    # ---------------- Motor Config (right column) ----------------
+
+    tk.Label(motor_col, text="Motor Config", font=("Segoe UI", 14, "bold")).pack(pady=(0, 6))
+
+    limits_frame = tk.Frame(motor_col)
     limits_frame.pack(pady=(0, 14))
 
     mcconf_entries = {}
@@ -148,37 +213,37 @@ def build_cubemars_tab(parent, cubemars):
     for row, (left_field, right_field) in enumerate(limit_pairs):
         tk.Label(limits_frame, text=servo_classes.CubeMarsServo.CUBEMARS_DISPLAY_NAMES[left_field], font=("Segoe UI", 12)).grid(
             row=row, column=0, sticky="w", padx=(0, 4), pady=4)
-        left_entry = tk.Entry(limits_frame, width=15, font=("Segoe UI", 12))
+        left_entry = tk.Entry(limits_frame, width=12, font=("Segoe UI", 12))
         left_entry.grid(row=row, column=1, padx=(0, 20), pady=2)
         mcconf_entries[left_field] = left_entry
 
         tk.Label(limits_frame, text=servo_classes.CubeMarsServo.CUBEMARS_DISPLAY_NAMES[right_field], font=("Segoe UI", 12)).grid(
             row=row, column=2, sticky="w", padx=(0, 4), pady=4)
-        right_entry = tk.Entry(limits_frame, width=15, font=("Segoe UI", 12))
+        right_entry = tk.Entry(limits_frame, width=12, font=("Segoe UI", 12))
         right_entry.grid(row=row, column=3, pady=2)
         mcconf_entries[right_field] = right_entry
 
-    tk.Label(inner, text="Speed", font=("Segoe UI", 13, "bold")).pack(pady=(4, 4))
-    speed_frame = tk.Frame(inner)
+    tk.Label(motor_col, text="Speed", font=("Segoe UI", 13, "bold")).pack(pady=(4, 4))
+    speed_frame = tk.Frame(motor_col)
     speed_frame.pack(pady=(0, 10))
 
     for col, field in enumerate(["speed_kp", "speed_ki"]):
         short_label = servo_classes.CubeMarsServo.CUBEMARS_DISPLAY_NAMES[field].replace("Speed ", "")
         tk.Label(speed_frame, text=short_label, font=("Segoe UI", 12)).grid(
             row=0, column=col * 2, sticky="w", padx=(0 if col == 0 else 20, 4))
-        entry = tk.Entry(speed_frame, width=15, font=("Segoe UI", 12))
+        entry = tk.Entry(speed_frame, width=12, font=("Segoe UI", 12))
         entry.grid(row=0, column=col * 2 + 1)
         mcconf_entries[field] = entry
 
-    tk.Label(inner, text="Position", font=("Segoe UI", 13, "bold")).pack(pady=(4, 4))
-    position_frame = tk.Frame(inner)
+    tk.Label(motor_col, text="Position", font=("Segoe UI", 13, "bold")).pack(pady=(4, 4))
+    position_frame = tk.Frame(motor_col)
     position_frame.pack(pady=(0, 14))
 
     for col, field in enumerate(["position_kp", "position_ki", "position_kd"]):
         short_label = servo_classes.CubeMarsServo.CUBEMARS_DISPLAY_NAMES[field].replace("Position ", "")
         tk.Label(position_frame, text=short_label, font=("Segoe UI", 12)).grid(
             row=0, column=col * 2, sticky="w", padx=(0 if col == 0 else 20, 4))
-        entry = tk.Entry(position_frame, width=15, font=("Segoe UI", 12))
+        entry = tk.Entry(position_frame, width=12, font=("Segoe UI", 12))
         entry.grid(row=0, column=col * 2 + 1)
         mcconf_entries[field] = entry
 
@@ -196,6 +261,28 @@ def build_cubemars_tab(parent, cubemars):
             return
         id_var.set(f"Controller ID: {app_result[5]}")
         baud_var.set(f"CAN Baud: {servo_classes.CubeMarsServo.CUBEMARS_CAN_BAUD_LABELS.get(app_result[17], 'unknown')}")
+
+        for field_name, entry in appconf_extra_entries.items():
+            offset = servo_classes.CubeMarsServo.CUBEMARS_APPCONF_OFFSETS[field_name]
+            if offset is None:
+                set_entry(entry, "-")
+            else:
+                set_entry(entry, servo_classes.CubeMarsServo.cubemars_get_appconf_field(app_result, field_name))
+
+        # Status Feedback Enable/Rate: only populate these if their offsets
+        # have actually been confirmed - otherwise leave the checkbox and
+        # rate field exactly as they were (unchecked/disabled).
+        enable_offset = servo_classes.CubeMarsServo.CUBEMARS_APPCONF_OFFSETS["status_feedback_enable"]
+        rate_offset = servo_classes.CubeMarsServo.CUBEMARS_APPCONF_OFFSETS["status_rate_hz"]
+
+        if enable_offset is not None:
+            enabled_value = servo_classes.CubeMarsServo.cubemars_get_appconf_field(app_result, "status_feedback_enable")
+            status_enable_var.set(1 if enabled_value else 0)
+            on_status_enable_toggle()  # syncs the Rate entry's enabled/disabled state to match
+
+        if rate_offset is not None and status_enable_var.get() == 1:
+            rate_value = servo_classes.CubeMarsServo.cubemars_get_appconf_field(app_result, "status_rate_hz")
+            set_entry(status_rate_entry, rate_value)
 
         mc_result, mc_error = cubemars.cubemars_read_mcconf()
         if mc_error:
@@ -254,13 +341,62 @@ def build_cubemars_tab(parent, cubemars):
 
         wrote_something = False
 
-        if new_id is not None or new_baud is not None:
-            app_result, app_error = cubemars.cubemars_write_appconf(new_id, new_baud)
+        appconf_changes = {}
+
+        if new_id is not None:
+            appconf_changes["controller_id"] = new_id
+        if new_baud is not None:
+            appconf_changes["can_baud_rate"] = new_baud
+
+        for field_name, entry in appconf_extra_entries.items():
+            text = entry.get().strip()
+            if text:
+                offset = servo_classes.CubeMarsServo.CUBEMARS_APPCONF_OFFSETS[field_name]
+                if offset is None:
+                    status_var.set(f"{field_name.replace('_', ' ')} isn't wired up yet - skipped.")
+                    continue
+                try:
+                    appconf_changes[field_name] = int(text) if field_name != "brake_current_timeout" else float(text)
+                except ValueError:
+                    status_var.set(f"'{text}' is not a valid value for {field_name}.")
+                    return
+
+        # Status Feedback Enable always has a definite state (checked or
+        # not), so it's included whenever its offset is confirmed -
+        # unlike the plain text entries above, there's no "empty" state
+        # to skip. Rate is only sent while the checkbox is checked, since
+        # the entry is disabled (and cleared) otherwise.
+        enable_offset = servo_classes.CubeMarsServo.CUBEMARS_APPCONF_OFFSETS["status_feedback_enable"]
+        if enable_offset is not None:
+            appconf_changes["status_feedback_enable"] = status_enable_var.get()
+
+            if status_enable_var.get() == 1:
+                rate_offset = servo_classes.CubeMarsServo.CUBEMARS_APPCONF_OFFSETS["status_rate_hz"]
+                rate_text = status_rate_entry.get().strip()
+                if rate_offset is not None and rate_text:
+                    try:
+                        appconf_changes["status_rate_hz"] = int(rate_text)
+                    except ValueError:
+                        status_var.set(f"'{rate_text}' is not a valid value for status rate.")
+                        return
+
+        if appconf_changes:
+            app_result, app_error = cubemars.cubemars_write_appconf(appconf_changes)
             if app_error:
                 status_var.set(app_error)
                 return
             id_var.set(f"Controller ID: {app_result[5]}")
             baud_var.set(f"CAN Baud: {servo_classes.CubeMarsServo.CUBEMARS_CAN_BAUD_LABELS.get(app_result[17], 'unknown')}")
+
+            if enable_offset is not None:
+                enabled_value = servo_classes.CubeMarsServo.cubemars_get_appconf_field(app_result, "status_feedback_enable")
+                status_enable_var.set(1 if enabled_value else 0)
+                on_status_enable_toggle()
+                rate_offset = servo_classes.CubeMarsServo.CUBEMARS_APPCONF_OFFSETS["status_rate_hz"]
+                if rate_offset is not None and status_enable_var.get() == 1:
+                    rate_value = servo_classes.CubeMarsServo.cubemars_get_appconf_field(app_result, "status_rate_hz")
+                    set_entry(status_rate_entry, rate_value)
+
             wrote_something = True
 
         if changes:
@@ -276,7 +412,7 @@ def build_cubemars_tab(parent, cubemars):
             status_var.set("Written and verified.")
 
     tk.Button(inner, text="Read All", command=on_read_all,
-             font=("Segoe UI", 12), width=18).pack(pady=(6, 4))
+             font=("Segoe UI", 12), width=18).pack(pady=(6, 4), before=columns_frame)
     tk.Button(inner, text="Write All", command=on_write_all,
              font=("Segoe UI", 12), width=18).pack(pady=(0, 14))
 
@@ -324,7 +460,7 @@ def main():
         selected = event.widget.select()
         tab_text = event.widget.tab(selected, "text")
         if tab_text == "CubeMars":
-            root.geometry("620x840")
+            root.geometry("1100x700")
         else:
             root.geometry("1250x860")
     

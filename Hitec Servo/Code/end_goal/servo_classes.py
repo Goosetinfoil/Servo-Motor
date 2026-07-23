@@ -15,7 +15,6 @@ class Servo:
         self.baud = baud
         self.ser = None
 
-
     def find_port(self):
         """Scans for connected serial decvices on port for one 
         matching the specific servo connected. """
@@ -303,6 +302,15 @@ class CubeMarsServo(Servo):
         "position_kd": 353,
     }
 
+    CUBEMARS_APPCONF_OFFSETS = {
+        "controler_id": 5,
+        "timeout_ms": 6,
+        "status_rate_hz": 16,
+        "can_baud_rate": 17,
+        "status_feedback_enable": None, # Not confirmed yet
+        "brake_current_timeout": None, # Not confirmed yet 
+    }
+
     # Display names for the cubeMars parameters on GUI
     CUBEMARS_DISPLAY_NAMES = {
         "motor_max": "Motor Max(Amps)",
@@ -405,8 +413,18 @@ class CubeMarsServo(Servo):
         if result is None or len(result) < 18:
             return None, "Failed to read CubeMars app config."
         return result, None
+
+    @staticmethod
+    def cubemars_get_appconf_field(appconf, field_name):
+        offset = CubeMarsServo.CUBEMARS_APPCONF_OFFSETS[field_name]
+
+        if field_name == "timeout_ms":
+            return int.from_bytes(appconf[offset:offset+4], "big")
+        else: 
+            return appconf[offset]
+            
     
-    def cubemars_write_appconf(self, new_controller_id, new_can_baud):
+    def cubemars_write_appconf(self, changes: dict):
         """Reads current config, edits only the given fields, writes it back,
         then re-reads to verify. Returns (verify_payload_or_None, error_message_or_None)."""
 
@@ -416,10 +434,18 @@ class CubeMarsServo(Servo):
 
         data = bytearray(current)
         data[0] = 16 # COMM_SET_APPCONF
-        if new_controller_id is not None:
-            data[5] = new_controller_id
-        if new_can_baud is not None:
-            data[17] = new_can_baud
+
+        
+        for field_name, new_value in changes.items():
+            offset = CubeMarsServo.CUBEMARS_APPCONF_OFFSETS[field_name]
+
+            if self.CUBEMARS_APPCONF_OFFSETS[field_name] is not None:
+                continue
+
+            if field_name == "timeout_ms":
+                data[offset:offset + 4] = new_value.to_bytes(4, "big")
+            else: 
+                data[offset] = new_value 
 
         port = self.find_port()
         if port is None:
