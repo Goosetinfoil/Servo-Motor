@@ -43,10 +43,7 @@ DEFAULT_PROFILE_SETTINGS = {
 }
 
 
-POSITION_COORDS = {   
-    "safety_tether": (389, 636),   # placeholder - actually computed from
-    "emergency_vent": (326, 681),  # TETHER_ANGLE_DEG / VENT_ANGLE_DEG at runtime
-}
+POSITION_COORDS = {}
 
 # Spot on the vehicle diagram a profile name refers to by looking for keywords in the name. Returns key into POSITION_COORDS
 def match_profile_to_position(profile_name):
@@ -527,192 +524,40 @@ def main():
     tk.Button(content_frame, text="Save to profile only", command=lambda: on_save_to_profile(),
              font=("Segoe UI", 13), width=20).pack(pady=(6, 4)) # Button to save the setting to the servo only
 
-    # --- Vehicle diagram (always visible, embedded in the main window) ---
-    # Drawn directly with Canvas shapes (no external image file), so it
-    # looks like a native part of the app rather than a pasted-in photo.
-    # Because WE define this coordinate system, the inner/outer marker
-    # positions below are calculated exactly rather than estimated off
-    # a picture - change BODY_R / TIP_R / TICK_R to reshape the whole
-    # diagram if the real vehicle's proportions differ.
+    # --- Vehicle diagram (placeholder) ---
+    # The original diagram geometry has been removed for privacy. To use
+    # your own vehicle image, save a PNG as vehicle_diagram.png in this
+    # same folder — it will display automatically. Until then, a
+    # placeholder box is shown instead.
     diagram_state = {"canvas": None, "marker": None}
 
-    BACK_CENTER = (240, 250)   # back-view circle center
-    BODY_R = 90                   # back-view body radius
-    TIP_R = 200                   # arm length (tip distance from center)
-    TICK_R = 138   # where the inner/outer tick mark sits
-    ARM_WIDTH = 30
-
-    SIDE_CENTER = (240, 600)      # side-view ellipse center
-    SIDE_RX, SIDE_RY = 180, 80 # Size of the side view oval 
-
-    # Angles (degrees, 0=right/east, increasing counter-clockwise) where
-    # the vent and tether sit on the side-view ellipse's boundary - this
-    # is what makes them look physically attached rather than floating.
-    # Changing these numbers is how you move the vent/tether around the
-    # ellipse - they're used to CALCULATE the coordinates below, which
-    # then get written into POSITION_COORDS so the drawn shape and the
-    # red marker dot always agree on where these two actually are.
-    VENT_ANGLE_DEG = 35 # Position of the vent drawing
-    TETHER_ANGLE_DEG = 8 # Position of the tether drawing 
-
-    def _point_on_ellipse(center, rx, ry, angle_deg):
-        """Converts a polar angle on an ellipse (center, radii rx/ry)
-        into (x, y) canvas coordinates on that ellipse's boundary. Used
-        to place the vent/tether markers exactly on the drawn hull line
-        rather than guessing pixel coordinates by eye."""
-        rad = math.radians(angle_deg)
-        cx, cy = center
-        return (cx + rx * math.cos(rad), cy + ry * math.sin(rad))
-
-    POSITION_COORDS["emergency_vent"] = _point_on_ellipse(
-        SIDE_CENTER, SIDE_RX, SIDE_RY, VENT_ANGLE_DEG)
-    POSITION_COORDS["safety_tether"] = _point_on_ellipse(
-        SIDE_CENTER, SIDE_RX, SIDE_RY, TETHER_ANGLE_DEG)
-
-    ARM_DIRECTIONS = {
-        # unit vectors pointing from the body center toward each arm
-        "top_left": (-0.7071, -0.7071),
-        "top_right": (0.7071, -0.7071),
-        "bottom_left": (-0.7071, 0.7071),
-        "bottom_right": (0.7071, 0.7071),
-    }
-
-    def _point_along_arm(direction, radius):
-        """Given a unit vector `direction` (from ARM_DIRECTIONS) and a
-        distance `radius` from the body center, returns the (x, y)
-        canvas point that far out along that arm. Used to compute the
-        inner/outer marker positions for each of the 4 arms."""
-        dx, dy = direction
-        cx, cy = BACK_CENTER
-
-        return (cx + radius * dx, cy + radius * dy)
-    
-    for name, direction in ARM_DIRECTIONS.items():
-        inner_radius = (BODY_R + TICK_R) / 2   # midpoint of the inner segment
-        outer_radius = (TICK_R + TIP_R) / 2    # midpoint of the outer segment
-        POSITION_COORDS[f"{name}_inner"] = _point_along_arm(direction, inner_radius)
-        POSITION_COORDS[f"{name}_outer"] = _point_along_arm(direction, outer_radius)
+    DIAGRAM_IMAGE_FILE = os.path.join(APP_DIR, "vehicle_diagram.png")
 
     def update_diagram_marker():
-        """Redraws the green dot on the vehicle diagram to match
-        whichever profile is currently selected. Removes any existing
-        marker first, then (if the selected profile's name maps to a
-        known position via match_profile_to_position) draws a new one
-        there. Called whenever the selected profile changes, or when a
-        profile is deleted / the servo disconnects."""
-        canvas = diagram_state.get("canvas")
-        if canvas is None:
-            return
-
-        if diagram_state.get("marker") is not None:
-            canvas.delete(diagram_state["marker"])
-            diagram_state["marker"] = None
-
-        name = profile_var.get()
-        if name and name != "-":
-            key = match_profile_to_position(name)
-            if key:
-                x, y = POSITION_COORDS[key]
-                if key in ("safety_tether", "emergency_vent"): # Changes the size of the marker based on which profile is selected
-                    r = 5.5
-                else:
-                    r = 8
-                diagram_state["marker"] = canvas.create_oval(
-                    x - r, y - r, x + r, y + r,
-                    fill="green",outline ="green", width=1) # The fill of the marker
+        """Placeholder no-op — position marking depended on the removed
+        diagram geometry. Re-implement this once you have your own
+        diagram and know where each profile's marker should sit."""
+        return
 
     def build_diagram_canvas(parent):
-        """Draws the static vehicle diagram once: a back view (body
-        circle + 4 rotated-rectangle arms with inner/outer tick marks)
-        and a side view (hull ellipse + emergency vent grille + safety
-        tether rectangle). Everything is drawn with Canvas primitives
-        using the geometry constants defined above (BACK_CENTER, BODY_R,
-        etc.) - there's no external image file. Stores the canvas in
-        diagram_state so update_diagram_marker() can add/remove the
-        selection dot on top of it later."""
+        """Shows the user's own vehicle_diagram.png if present, otherwise
+        a placeholder box explaining how to add one."""
         canvas = tk.Canvas(parent, width=480, height=780, bg="#f0f0f0",
-                          highlightthickness=1, highlightbackground="#f0f0f0")
+                        highlightthickness=1, highlightbackground="#f0f0f0")
         canvas.pack(pady=(4, 10))
         diagram_state["canvas"] = canvas
 
-        cx, cy = BACK_CENTER
-
-        canvas.create_text(cx, 50, text="Back View",
-                          font=("Segoe UI", 14, "italic"), fill="#000000")
-
-        # --- back view: body + 4 arms (true rotated rectangles) with a
-        #     tick mark on each showing the inner/outer split ---
-        for dx, dy in ARM_DIRECTIONS.values():
-            perp_dx, perp_dy = -dy, dx
-            hw = ARM_WIDTH / 2
-            p1x, p1y = cx + BODY_R * dx, cy + BODY_R * dy   # arm base (at body)
-            p2x, p2y = cx + TIP_R * dx, cy + TIP_R * dy     # arm tip
-
-            corners = [
-                p1x + perp_dx * hw, p1y + perp_dy * hw,
-                p2x + perp_dx * hw, p2y + perp_dy * hw,
-                p2x - perp_dx * hw, p2y - perp_dy * hw,
-                p1x - perp_dx * hw, p1y - perp_dy * hw,
-            ]
-            canvas.create_polygon(corners, outline="#333333", width=2, fill="#f2f2f2")
-
-            # tick mark: short perpendicular line at the inner/outer split
-            tx, ty = cx + TICK_R * dx, cy + TICK_R * dy
-            half = hw
-            canvas.create_line(tx - perp_dx * half, ty - perp_dy * half,
-                               tx + perp_dx * half, ty + perp_dy * half,
-                               width=2, fill="#333333")
-
-        canvas.create_oval(cx - BODY_R, cy - BODY_R, cx + BODY_R, cy + BODY_R,
-                          outline="#333333", width=3, fill="#f0f0f0")
-
-        # --- side view: body ellipse + emergency vent + safety tether,
-        #     both positioned ON the ellipse boundary so they read as
-        #     physically attached rather than floating nearby ---
-        ex, ey = SIDE_CENTER
-        canvas.create_text(ex, ey - SIDE_RY - 45, text="Side View",
-                          font=("Segoe UI", 14, "italic"), fill="#000000")
-        canvas.create_oval(ex - SIDE_RX, ey - SIDE_RY, ex + SIDE_RX, ey + SIDE_RY,
-                          outline="#333333", width=3)
-
-        # inner arc (the extra curve visible inside the body in the
-        # original sketch, like an underside/hull line). Adjust
-        # INNER_ARC_* below if the curve's shape/position needs tuning.
-        INNER_ARC_RX = SIDE_RX * 0.75
-        INNER_ARC_RY = SIDE_RY * 0.7
-        inner_cx = ex - SIDE_RX * 0.05
-        inner_cy = ey - SIDE_RY * -0.9
-        canvas.create_arc(inner_cx - INNER_ARC_RX, inner_cy - INNER_ARC_RY,
-                         inner_cx + INNER_ARC_RX, inner_cy + INNER_ARC_RY,
-                         start=15, extent=145, style=tk.ARC,
-                         outline="#333333", width=2)
-
-        # emergency vent: a small grille icon (3x3 grid) straddling the
-        # ellipse boundary at VENT_ANGLE_DEG
-        vx, vy = POSITION_COORDS["emergency_vent"]
-        vs = 10  # half-size of the vent square
-        canvas.create_rectangle(vx - vs, vy - vs, vx + vs, vy + vs,
-                               outline="#333333", width=2, fill="white")
-        for i in (1, 2):  # 3x3 grille lines
-            gx = vx - vs + i * (2 * vs) / 3
-            canvas.create_line(gx, vy - vs, gx, vy + vs, fill="#333333")
-            gy = vy - vs + i * (2 * vs) / 3
-            canvas.create_line(vx - vs, gy, vx + vs, gy, fill="#333333")
-
-        # safety tether: a rectangle straddling the ellipse boundary at
-        # TETHER_ANGLE_DEG, oriented along that same radial direction
-        tx3, ty3 = POSITION_COORDS["safety_tether"]
-        t_rad = math.radians(TETHER_ANGLE_DEG)
-        t_dx, t_dy = math.cos(t_rad), math.sin(t_rad)   # outward direction
-        t_perp_dx, t_perp_dy = -t_dy, t_dx
-        t_len, t_wid = 10, 10 # Size of the safety tether rectangle (half-length, half-width)
-        t_corners = [
-            tx3 + t_dx * t_len + t_perp_dx * t_wid, ty3 + t_dy * t_len + t_perp_dy * t_wid,
-            tx3 - t_dx * t_len + t_perp_dx * t_wid, ty3 - t_dy * t_len + t_perp_dy * t_wid,
-            tx3 - t_dx * t_len - t_perp_dx * t_wid, ty3 - t_dy * t_len - t_perp_dy * t_wid,
-            tx3 + t_dx * t_len - t_perp_dx * t_wid, ty3 + t_dy * t_len - t_perp_dy * t_wid,
-        ]
-        canvas.create_polygon(t_corners, outline="#333333", width=2, fill="#f0f0f0")
+        if os.path.exists(DIAGRAM_IMAGE_FILE):
+            img = tk.PhotoImage(file=DIAGRAM_IMAGE_FILE)
+            diagram_state["image"] = img  # keep a reference so Tkinter doesn't garbage-collect it
+            canvas.create_image(240, 390, image=img)
+        else:
+            canvas.create_rectangle(20, 20, 460, 760, outline="#999999", dash=(4, 2))
+            canvas.create_text(
+                240, 390,
+                text="No vehicle diagram found.\n\nAdd your own image as:\nvehicle_diagram.png\nin this folder.",
+                fill="#999999", font=("Segoe UI", 11), justify="center"
+            )
 
     build_diagram_canvas(diagram_panel)
 
